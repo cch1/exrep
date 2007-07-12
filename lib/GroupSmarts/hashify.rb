@@ -32,12 +32,9 @@ module GroupSmarts
         method_names = options[:methods] || (options[:enumerator] && self.class.send(options[:enumerator])) || self.class.respond_to?(:hash_methods) && self.class.hash_methods|| self.attribute_names
         method_names = Array(method_names).map(&:to_s)
     
-        if options[:only]
-          options.delete(:except)
-          method_names = method_names & Array(options[:only]).map(&:to_s)
-        elsif options[:except]
-          method_names = method_names - Array(options[:except]).map(&:to_s)
-        end
+        
+        method_names = method_names + Array(options[:with]).map(&:to_s)
+        method_names = method_names - Array(options[:without]).map(&:to_s)
     
         method_names.inject({}) do |h, m|
           h.merge!({m.to_s => self.send(m)}) if self.respond_to?(m.to_s)
@@ -51,7 +48,7 @@ module GroupSmarts
         associations_hash = options[:include].is_a?(Hash) ? options[:include] : Array(options[:include]).inject({}){|h,a| h[a] = {};h}
         # Iterate over associations, calling to_hash.
         associations_hash.keys.each do |association|
-          opts = associations_hash[association]  
+          opts = associations_hash[association]
           case self.class.reflect_on_association(association).macro
           when :has_many, :has_and_belongs_to_many
             hash[association] = self.send(association).map { |r| r.to_hash(opts) }
