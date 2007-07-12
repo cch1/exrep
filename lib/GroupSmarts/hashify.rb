@@ -13,7 +13,7 @@ module GroupSmarts
     
     module ClassMethods
       def hash_methods
-        content_columns.map(&:name)
+        [primary_key] + content_columns.map(&:name)
       end
     end
     
