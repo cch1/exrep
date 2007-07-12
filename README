@@ -1,0 +1,6 @@
+Hashify
+=======
+
+This plugin has one simple goal: to create a hash from an ActiveRecord instance while balancing 
+efficiency and flexibility.  Once the hash has been created, it can be converted to YAML, XML or json
+with little effort using Rails' native to_json, to_yaml and to_xml methods.
