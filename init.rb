@@ -1,2 +1,2 @@
-require 'GroupSmarts/hashify'
-ActiveRecord::Base.send(:include, GroupSmarts::Hashify)
+require 'GroupSmarts/exrep'
+ActiveRecord::Base.send(:include, GroupSmarts::ExRep)
