@@ -21,15 +21,13 @@ module GroupSmarts
     module ClassMethods
       # enumerate the instance methods that collectively generate the external representation of self.
       def exrep_methods
-        available = class_variable_defined?(:@@baseline_attributes)        
-        available ? class_variable_get(:@@baseline_attributes) : [primary_key] + content_columns.map(&:name).sort
+        [primary_key] + content_columns.map(&:name).sort
       end
     end
     
     module InstanceMethods
       # Generate a URL that represents self.
       def exrep_url
-        default_url_options[:host] = MMConfig.app_url
         method = self.class.to_s.underscore + '_url'
         self.send(method, self)
       end
