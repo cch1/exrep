@@ -57,7 +57,7 @@ module GroupSmarts
         # Convert include to nested hash of options.
         associations_hash = options[:include].is_a?(::Hash) ? options[:include] : Array(options[:include]).inject({}){|h,a| h[a] = {};h}
         associations_hash.keys.each do |association|
-          propogating_options = options.reject{|k,v| !(%w(builder indent skip_instruct).include?(k.to_s))}
+          propogating_options = options.reject{|k,v| !(%w(builder indent skip_instruct dasherize).include?(k.to_s))}
           opts = associations_hash[association].merge(propogating_options)
           case @record.class.reflect_on_association(association).macro
           when :has_many, :has_and_belongs_to_many
