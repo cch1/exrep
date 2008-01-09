@@ -1,7 +1,7 @@
 # Hashify
 # Copyright 2007, Chris Hapgood
 # Derived from earlier work represented by the tree_map method in MemoryMiner.  Repackaged as a library for 
-# portability across project in the Summer of 2007.
+# portability across projects in the Summer of 2007.
 module GroupSmarts
   module ExRep
     def self.included(base)
@@ -21,7 +21,7 @@ module GroupSmarts
     module ClassMethods
       # enumerate the instance methods that collectively generate the external representation of self.
       def exrep_methods
-        [primary_key] + content_columns.map(&:name).sort
+        [primary_key] + (content_columns.map(&:name) - protected_attributes().to_a).sort
       end
     end
     
@@ -37,7 +37,8 @@ module GroupSmarts
     end
     
     module XmlSerializer
-      # Add support for an href attribute of the root node via url method on serialzed object.
+      # Add support for an href attribute of the root node via url method on serialzed object.  Call
+      # customized add_attributes.
       def serialize_with_fu
         args = [root]
         
@@ -47,42 +48,16 @@ module GroupSmarts
 
         builder.tag!(*args) do
           add_attributes_with_fu
-          add_includes_with_fu
+          procs = options.delete(:procs)
+          add_includes { |association, records, opts| add_associations(association, records, opts) }
+          options[:procs] = procs
           add_procs
-          yield builder if block_given?
         end
       end
       
-      def add_includes_with_fu
-        # Convert include to nested hash of options.
-        associations_hash = options[:include].is_a?(::Hash) ? options[:include] : Array(options[:include]).inject({}){|h,a| h[a] = {};h}
-        associations_hash.keys.each do |association|
-          propogating_options = options.reject{|k,v| !(%w(builder indent skip_instruct dasherize).include?(k.to_s))}
-          opts = associations_hash[association].merge(propogating_options)
-          case @record.class.reflect_on_association(association).macro
-          when :has_many, :has_and_belongs_to_many
-            records = @record.send(association)
-            tag = association.to_s
-            tag = tag.dasherize if dasherize?
-            if records.empty?
-              builder.tag!(tag, :type => :array)
-            else
-              builder.tag!(tag, :type => :array) do
-                association_name = association.to_s.singularize
-                records.each do |record| 
-                  o = opts.merge(:root => association_name, :type => (record.class.to_s.underscore == association_name ? nil : record.class.name))
-                  record.to_xml(o)
-                end
-              end
-            end
-          when :has_one, :belongs_to
-            if record = @record.send(association)
-              record.to_xml(opts.merge(:root => association))
-            end # if
-          end # case
-        end # do
-      end # def
-      
+      # Add support for non-propogating :with and :without options (in lieu of goofy half propogating :only 
+      # and :except), and unify treatment of methods and attributes.  Find default attributes in an 
+      # enumerator.
       def add_attributes_with_fu
         attribute_names = options[:methods] || (options[:enumerator] && @record.class.send(options[:enumerator])) || @record.class.respond_to?(:exrep_methods) && @record.class.exrep_methods|| @record.attribute_names
         attribute_names = Array(attribute_names).map(&:to_s)
@@ -97,6 +72,8 @@ module GroupSmarts
       end
     end # module
     
+    # Due to problems with the ActiveRecord::Base.to_xml and to_json methods' handling of collections, this 
+    # module allows one to create a hash from an association collection and then apply the conversion method.
     module SmartHash
       def to_hash(options = {})
         hash = {}
