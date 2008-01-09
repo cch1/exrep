@@ -48,6 +48,8 @@ module GroupSmarts
 
         builder.tag!(*args) do
           add_attributes_with_fu
+          # Ensure the with and without options do not propogate
+          options.delete(:with); options.delete(:without)
           procs = options.delete(:procs)
           add_includes { |association, records, opts| add_associations(association, records, opts) }
           options[:procs] = procs
