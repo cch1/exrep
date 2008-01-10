@@ -11,6 +11,10 @@ module GroupSmarts
         include SmartHash
         include SmartXML
       end
+      ::ActiveRecord::Serialization::Serializer.class_eval do
+        include Serializer
+        alias_method_chain :serializable_names, :fu
+      end
       ::ActiveRecord::XmlSerializer.class_eval do
         include XmlSerializer
         alias_method_chain :serialize, :fu
@@ -36,6 +40,27 @@ module GroupSmarts
     module SmartXML
     end
     
+    # Enhance methods applicable to all AR serialization (to_json and to_xml)
+    module Serializer
+      # Add support for finding default methods/attributes in an enumerator and using
+      # non-propogating :with and :without options.  Baseline attributes are determined by 
+      # the enumerator, and the with and without options add and subtract attributes from 
+      # that baseline.  Contrast this with the behavior of :only, which specifies the only
+      # attributes to appear. 
+      def serializable_names_with_fu
+        # TODO Add backwards compatibility with existing RoR :only and :except options.
+#        names = serializable_names_without_fu if (options[:only] || options[:except])
+        names ||= options[:enumerator] && @record.class.send(options[:enumerator]) 
+        names ||= @record.class.respond_to?(:exrep_methods) && @record.class.exrep_methods
+        names ||= @record.attribute_names - [@record.class.inheritance_column]
+        
+        names = names + Array(options[:with]).map(&:to_s)
+        names = names - Array(options[:without]).map(&:to_s)
+        
+        Array(names).map(&:to_s).uniq
+      end
+    end
+    
     module XmlSerializer
       # Add support for an href attribute of the root node via url method on serialzed object.  Call
       # customized add_attributes.
@@ -54,68 +79,24 @@ module GroupSmarts
           add_includes { |association, records, opts| add_associations(association, records, opts) }
           options[:procs] = procs
           add_procs
+          yield builder if block_given?
         end
       end
       
-      # Add support for non-propogating :with and :without options (in lieu of goofy half propogating :only 
-      # and :except), and unify treatment of methods and attributes.  Find default attributes in an 
-      # enumerator.
+      # Unify specification of methods and attributes.
       def add_attributes_with_fu
-        attribute_names = options[:methods] || (options[:enumerator] && @record.class.send(options[:enumerator])) || @record.class.respond_to?(:exrep_methods) && @record.class.exrep_methods|| @record.attribute_names
-        attribute_names = Array(attribute_names).map(&:to_s)
-        
-        attribute_names = attribute_names + Array(options[:with]).map(&:to_s)
-        attribute_names = attribute_names - Array(options[:without]).map(&:to_s)
-    
-        attribute_names.each do |name|
+        serializable_names_with_fu.each do |name|
           attribute_class = @record.attribute_names.include?(name) ? ::ActiveRecord::XmlSerializer::Attribute : ::ActiveRecord::XmlSerializer::MethodAttribute
           add_tag(attribute_class.new(name, @record))
         end
       end
     end # module
     
-    # Due to problems with the ActiveRecord::Base.to_xml and to_json methods' handling of collections, this 
-    # module allows one to create a hash from an association collection and then apply the conversion method.
     module SmartHash
+      # Convert to a simple ruby hash -not really serialization but rather a step on the way.
       def to_hash(options = {})
-        hash = {}
-    
-        hash.merge!(self.direct(options))
-        hash.merge!(self.associations(options))
-    
-        hash
+        ActiveRecord::Serialization::Serializer.new(self, options).serializable_record
       end
-    
-      # Returns (key,value) pairs from methods called on the top-level object.
-      def direct(options = {})
-        method_names = options[:methods] || (options[:enumerator] && self.class.send(options[:enumerator])) || self.class.respond_to?(:exrep_methods) && self.class.exrep_methods|| self.attribute_names
-        method_names = Array(method_names).map(&:to_s)
-        
-        method_names = method_names + Array(options[:with]).map(&:to_s)
-        method_names = method_names - Array(options[:without]).map(&:to_s)
-    
-        method_names.inject({}) do |h, m|
-          h.merge!({m.to_s => self.send(m)}) if self.respond_to?(m.to_s)
-        end
-      end
-    
-      # Recursively invokes to_hash on named associations, passing in appropriate options.
-      def associations(options = {})
-        hash = {}
-        # Convert include to nested hash of options.
-        associations_hash = options[:include].is_a?(::Hash) ? options[:include] : Array(options[:include]).inject({}){|h,a| h[a] = {};h}
-        # Iterate over associations, calling to_hash.
-        associations_hash.keys.each do |association|
-          opts = associations_hash[association]
-          case self.class.reflect_on_association(association).macro
-          when :has_many, :has_and_belongs_to_many
-            hash[association] = self.send(association).map { |r| r.to_hash(opts) }
-          when :has_one, :belongs_to
-            hash[association] = self.send(association).to_hash(opts)
-          end
-        end  
-        hash
-      end
-    end
+    end # module
   end # module
 end # module
