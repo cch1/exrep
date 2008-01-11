@@ -23,16 +23,17 @@ module GroupSmarts
     end  
 
     module ClassMethods
-      # enumerate the instance methods that collectively generate the external representation of self.
+      # Enumerate the instance methods that collectively generate the external representation of self.
+      # Override in your model.
       def exrep_methods
         [primary_key] + (content_columns.map(&:name) - protected_attributes().to_a).sort
       end
     end
     
     module InstanceMethods
-      # Generate a URL that represents self.
+      # Generate a relative URL that represents self.  Override in your model as required.
       def exrep_url
-        method = self.class.to_s.underscore + '_url'
+        method = self.class.to_s.underscore + '_path'
         self.send(method, self)
       end
     end
@@ -44,12 +45,11 @@ module GroupSmarts
     module Serializer
       # Add support for finding default methods/attributes in an enumerator and using
       # non-propogating :with and :without options.  Baseline attributes are determined by 
-      # the enumerator, and the with and without options add and subtract attributes from 
-      # that baseline.  Contrast this with the behavior of :only, which specifies the only
-      # attributes to appear. 
+      # the enumerator, and the :with and :without options add and subtract attributes from 
+      # that baseline.  Contrast this with the behavior of :only, which specifies an exclusive
+      # list of attributes. 
       def serializable_names_with_fu
-        # TODO Add backwards compatibility with existing RoR :only and :except options.
-#        names = serializable_names_without_fu if (options[:only] || options[:except])
+        names = serializable_names_without_fu if (options[:only] || options[:except])
         names ||= options[:enumerator] && @record.class.send(options[:enumerator]) 
         names ||= @record.class.respond_to?(:exrep_methods) && @record.class.exrep_methods
         names ||= @record.attribute_names - [@record.class.inheritance_column]
@@ -73,8 +73,10 @@ module GroupSmarts
 
         builder.tag!(*args) do
           add_attributes_with_fu
-          # Ensure the with and without options do not propogate
-          options.delete(:with); options.delete(:without)
+          # Ensure the :with, :without and :href options do not propogate (by design)
+          options.delete(:with); options.delete(:without); options.delete(:href)
+          # Ensure the :only, :except options do not propogate either, because they dominate our enumerator. 
+          options.delete(:only); options.delete(:except)
           procs = options.delete(:procs)
           add_includes { |association, records, opts| add_associations(association, records, opts) }
           options[:procs] = procs
