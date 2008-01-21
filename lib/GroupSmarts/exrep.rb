@@ -14,6 +14,7 @@ module GroupSmarts
       ::ActiveRecord::Serialization::Serializer.class_eval do
         include Serializer
         alias_method_chain :serializable_names, :fu
+        alias_method_chain :serializable_record, :fu
       end
       ::ActiveRecord::XmlSerializer.class_eval do
         include XmlSerializer
@@ -59,11 +60,31 @@ module GroupSmarts
         
         Array(names).map(&:to_s).uniq
       end
+
+      # Ensure the :wite, :without and :href options do not propogate (by design) and that the
+      # :only and :except options also do not propogate (because they dominate mask the exrep enumerator.  
+      def serializable_record_with_fu
+        returning(serializable_record = {}) do
+          serializable_names.each { |name| serializable_record[name] = @record.send(name) }
+          add_includes do |association, records, opts|
+            # Ensure the :with and :without options do not propogate (by design)
+            opts.delete(:with); opts.delete(:without)
+            # Ensure the :only, :except options do not propogate either, because they dominate our enumerator. 
+            opts.delete(:only); opts.delete(:except)
+            if records.is_a?(Enumerable)
+              serializable_record[association] = records.collect { |r| self.class.new(r, opts).serializable_record }
+            else
+              serializable_record[association] = self.class.new(records, opts).serializable_record
+            end
+          end
+        end
+      end
     end
     
     module XmlSerializer
       # Add support for an href attribute of the root node via url method on serialzed object.  Call
-      # customized add_attributes.
+      # customized add_attributes.  Note that the original serialize bypasses the conventional 
+      # serializable_record method in favor of some custom trickery for the proc enhancement.
       def serialize_with_fu
         args = [root]
         
