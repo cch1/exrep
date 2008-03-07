@@ -2,14 +2,13 @@
 # Copyright 2007, Chris Hapgood
 # Derived from earlier work represented by the tree_map method in MemoryMiner.  Repackaged as a library for 
 # portability across projects in the Summer of 2007.
+# Updated March 2008 to work nicely with Edge Rails.
 module GroupSmarts
   module ExRep
     def self.included(base)
       base.extend(ClassMethods)
       base.class_eval do
         include InstanceMethods
-        include SmartHash
-        include SmartXML
       end
       ::ActiveRecord::Serialization::Serializer.class_eval do
         include Serializer
@@ -32,14 +31,11 @@ module GroupSmarts
     end
     
     module InstanceMethods
-      # Generate a relative URL that represents self.  Override in your model as required.
-      def exrep_url
-        method = self.class.to_s.underscore + '_path'
-        self.send(method, self)
+      # Generate a relative path that represents self for use in href attributes.
+      # Override in your model as required.
+      def exrep_path
+        polymorphic_path(self)
       end
-    end
-    
-    module SmartXML
     end
     
     # Enhance methods applicable to all AR serialization (to_json and to_xml)
@@ -61,15 +57,12 @@ module GroupSmarts
         Array(names).map(&:to_s).uniq
       end
 
-      # Ensure the :wite, :without and :href options do not propogate (by design) and that the
-      # :only and :except options also do not propogate (because they dominate mask the exrep enumerator.  
+      # Ensure the :only and :except options do not propogate (because they dominate/mask the exrep enumerator).  
       def serializable_record_with_fu
         returning(serializable_record = {}) do
           serializable_names.each { |name| serializable_record[name] = @record.send(name) }
           add_includes do |association, records, opts|
-            # Ensure the :with and :without options do not propogate (by design)
-            opts.delete(:with); opts.delete(:without)
-            # Ensure the :only, :except options do not propogate either, because they dominate our enumerator. 
+            # Ensure the :only, :except options do not propogate 
             opts.delete(:only); opts.delete(:except)
             if records.is_a?(Enumerable)
               serializable_record[association] = records.collect { |r| self.class.new(r, opts).serializable_record }
@@ -79,6 +72,11 @@ module GroupSmarts
           end
         end
       end
+      
+      # Convert to a simple ruby hash -not really serialization but rather a step on the way.
+      def to_hash(options = {})
+        ActiveRecord::Serialization::Serializer.new(self, options).serializable_record
+      end      
     end
     
     module XmlSerializer
@@ -90,7 +88,7 @@ module GroupSmarts
         
         args << {:xmlns=>options[:namespace]} if options[:namespace]
         args << {:type=>options[:type]} if options[:type]
-        args << {:href => @record.exrep_url} if options[:href] and @record.respond_to?(:exrep_url)
+        args << {:href => @record.exrep_path} if options[:href]
 
         builder.tag!(*args) do
           add_attributes_with_fu
@@ -112,13 +110,6 @@ module GroupSmarts
           attribute_class = @record.attribute_names.include?(name) ? ::ActiveRecord::XmlSerializer::Attribute : ::ActiveRecord::XmlSerializer::MethodAttribute
           add_tag(attribute_class.new(name, @record))
         end
-      end
-    end # module
-    
-    module SmartHash
-      # Convert to a simple ruby hash -not really serialization but rather a step on the way.
-      def to_hash(options = {})
-        ActiveRecord::Serialization::Serializer.new(self, options).serializable_record
       end
     end # module
   end # module
