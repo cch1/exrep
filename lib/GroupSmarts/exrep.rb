@@ -64,7 +64,6 @@ module GroupSmarts
           add_includes do |association, records, opts|
             # Ensure the :only, :except options do not propogate 
             opts.delete(:only); opts.delete(:except)
-            opts.delete(:with); opts.delete(:without)
             if records.is_a?(Enumerable)
               serializable_record[association] = records.collect { |r| self.class.new(r, opts).serializable_record }
             else
