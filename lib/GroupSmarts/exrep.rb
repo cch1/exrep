@@ -61,9 +61,11 @@ module GroupSmarts
       def serializable_record_with_fu
         returning(serializable_record = {}) do
           serializable_names.each { |name| serializable_record[name] = @record.send(name) }
+          # Ensure the :with, :without and :href options do not propogate (by design)
+          options.delete(:with); options.delete(:without)
+          # Ensure the :only, :except options do not propogate either, because they dominate our enumerator. 
+          options.delete(:only); options.delete(:except)
           add_includes do |association, records, opts|
-            # Ensure the :only, :except options do not propogate 
-            opts.delete(:only); opts.delete(:except)
             if records.is_a?(Enumerable)
               serializable_record[association] = records.collect { |r| self.class.new(r, opts).serializable_record }
             else
