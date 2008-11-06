@@ -1,2 +1,3 @@
-require 'GroupSmarts/exrep'
-ActiveRecord::Base.send(:include, GroupSmarts::ExRep)
+require 'hapgood/exrep'
+require 'hapgood/csv_serializer'
+ActiveRecord::Base.send(:include, Hapgood::ExRep)
