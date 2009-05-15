@@ -22,7 +22,7 @@ module Hapgood
       # Enumerate the instance methods that collectively generate the external representation of self.
       # Override in your model.
       def exrep_methods
-        acc = (content_columns.map(&:name) & accessible_attributes.to_a) - protected_attributes().to_a
+        acc = (accessible_attributes || content_columns.map(&:name)).to_set - (protected_attributes || []).to_set
         [primary_key] + acc.sort        
       end
     end
