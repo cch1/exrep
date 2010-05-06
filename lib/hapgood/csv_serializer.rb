@@ -14,18 +14,19 @@ module ActiveRecord #:nodoc:
     def serialize
       buffer = options[:buffer] || String.new
       # We can't just grab serializable_record.values because ordering must match header
-      src = serializable_names.inject([]) {|memo, a| memo << serializable_record[a]}
+      sr_hash = serializable_record # cache this expensive method call.
+      src = serializable_names.inject([]) {|memo, a| memo << sr_hash[a]}
       CSV.generate_row(src, src.size, buffer)
       buffer
     end
-  end  
+  end
 end
 
 class Array
   def to_csv(options = {})
     raise "Not all elements respond to to_csv" unless all? { |e| e.respond_to? :to_csv }
     raise "Array is not homogeneous" unless all? {|e| e.kind_of? first.class }
-    
+
     options[:buffer] ||= String.new
     CSV::Writer.generate(options[:buffer]) do |csv|
       unless options[:skip_header]
