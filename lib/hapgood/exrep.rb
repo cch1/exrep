@@ -51,7 +51,7 @@ module Hapgood
 
       # Use strong fu in determining which attrs are to be serialized
       def serializable_record_with_fu
-        returning(serializable_record = {}) do
+        Hash.new.tap do |serializable_record|
           serializable_names.each { |name| serializable_record[name] = @record.send(name) }
           # Ensure :with, :without and :href do not propogate (by design), nor :only, :except (because they dominate our enumerator).
           subordinate_options = options.reject{|k,v| %w(with without only except).include?(k.to_s)}
